@@ -11,6 +11,7 @@ let configuration_ref = ref (Configuration.create ())
 let weaken_delimiter_hole_matching = false
 
 let debug = false
+let debugx = false
 
 let f _ = return Unit
 
@@ -225,10 +226,16 @@ module Make (Syntax : Syntax.S) = struct
     >>= fun () -> f matched
 
   let generate_hole_parser ?priority_left_delimiter:left_delimiter ?priority_right_delimiter:right_delimiter =
+    let is_alphanum _delim = Pcre.(pmatch ~rex:(regexp "^[[:alnum:]]*$") _delim) in
     let between_nested_delims p from =
       let until = until_of_from from in
-      between (string from) (string until) p
-      |>> fun result -> (String.concat @@ [from] @ result @ [until])
+      let p =
+        if is_alphanum from then
+          between (string from) (string until) p
+        else
+          between (string from) (string until) p
+      in
+      p |>> fun result -> (String.concat @@ [from] @ result @ [until])
     in
     let between_nested_delims p =
       let trigger_nested_parsing_prefix =
@@ -256,14 +263,14 @@ module Make (Syntax : Syntax.S) = struct
         else
           Syntax.user_defined_delimiters
       in
-      let is_alphanum _delim = Pcre.(pmatch ~rex:(regexp "^[[:alnum:]]*$") _delim) in
       trigger_nested_parsing_prefix
       (* why not do this up top? dunno, I think it's because we
          only want this in reserved. *)
       |> List.concat_map ~f:(fun (from, until) ->
+          (*Format.printf "Mapping delim... will attempt@.";*)
           if is_alphanum from then
             [ string from
-            ; string until ]
+            ; string until (*<< spaces1*) ]
           else
             [string from; string until]
         )
@@ -274,10 +281,12 @@ module Make (Syntax : Syntax.S) = struct
     let rec nested_grammar s =
       (comment_parser
        (* untested here and in reserved, not sure if needed *)
-       <|> (many1 space >>= fun x -> return @@ String.of_char_list x)
+       <|> (many1 space >>= fun x ->
+            if debugx then Format.printf "<sp>@.";
+            return @@ String.of_char_list x)
        <|> raw_string_literal_parser (fun ~contents ~left_delimiter:_ ~right_delimiter:_ -> contents)
        <|> escapable_string_literal_parser (fun ~contents ~left_delimiter:_ ~right_delimiter:_ -> contents)
-       <|> delimsx
+       <|> (delimsx >>= fun x -> if debugx then Format.printf "<d>%s</d>@." x; return x)
        (* Having character-level matching is super useful property of holes,
           But, that also means that we can accidentally recognize alphanum
           characters/keywords that denote delimiters midway through token. such
@@ -288,7 +297,8 @@ module Make (Syntax : Syntax.S) = struct
           ability for hole to recognize a substring. Instead, we inject spaces around
           alphanumeric delimiters for parsers above. This means reserved keywords are only
           recognized if there are spaces around. *)
-       <|> (is_not (reserved <|> (space >>= fun c -> return @@ Char.to_string c)) |>> String.of_char))
+       <|> (is_not (reserved <|> (space >>= fun c -> return @@ Char.to_string c)) >>= fun c ->
+            if debugx then Format.printf "<c>%c</c>@." c; return @@ String.of_char c))
         s
     and delimsx s = (between_nested_delims (many nested_grammar)) s
     in

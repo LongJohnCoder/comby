@@ -204,6 +204,92 @@ ActionController::Base
 </Block>
 |}]
 
+let%expect_test "ruby_blocks_simpl" =
+  let source = {|
+class ActionController::Base
+  classy
+  before body
+end
+|}
+  in
+  let match_template = {|class :[1] end|} in
+  let rewrite_template = "<block>\n:[1]\n</Block>" in
+
+  run (module Matchers.Ruby) source match_template rewrite_template;
+  [%expect_exact {|
+<block>
+ActionController::Base
+  classy
+  before body
+</Block>
+|}]
+
+let%expect_test "ruby_blocks_simpl" =
+  let source = {|
+class yclass
+  before body
+end
+|}
+  in
+  let match_template = {|class :[1] end|} in
+  let rewrite_template = "<block>\n:[1]\n</Block>" in
+
+  run (module Matchers.Ruby) source match_template rewrite_template;
+  [%expect_exact {|
+<block>
+yclass
+  before body
+</Block>
+|}]
+
+(* WRONG BEHAVIOR *)
+let%expect_test "ruby_blocks_simpl" =
+  let source = {|
+class ActionController::Base
+  classy
+  before body
+  endly
+end
+|}
+  in
+  let match_template = {|class :[1] end|} in
+  let rewrite_template = "<block>\n:[1]\n</Block>" in
+
+  run (module Matchers.Ruby) source match_template rewrite_template;
+  [%expect_exact {|
+<block>
+ActionController::Base
+  classy
+  before body
+</Block>ly
+end
+|}]
+
+(* WRONG BEHAVIOR *)
+let%expect_test "ruby_blocks_simpl" =
+  let source = {|
+class yclass
+  before body
+    endly
+end
+|}
+  in
+  let match_template = {|class :[1] end|} in
+  let rewrite_template = "<block>\n:[1]\n</Block>" in
+
+  run (module Matchers.Ruby) source match_template rewrite_template;
+  [%expect_exact {|
+<block>
+yclass
+  before body
+</Block>ly
+end
+|}]
+
+
+(* WRONG BEHAVIOR:
+   ([x]) is matching ( with ].
+   delim parser is not triggered. *)
 let%expect_test "ruby_blocks_no_whitespace_before_delim" =
   let source = {| class class x end end |}
   in
