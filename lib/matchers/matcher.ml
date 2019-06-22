@@ -256,19 +256,39 @@ module Make (Syntax : Syntax.S) = struct
         else
           Syntax.user_defined_delimiters
       in
+      let is_alphanum _delim = Pcre.(pmatch ~rex:(regexp "^[[:alnum:]]*$") _delim) in
       trigger_nested_parsing_prefix
-      |> List.concat_map ~f:(fun (from, until) -> [from; until])
-      |> List.map ~f:string
+      (* why not do this up top? dunno, I think it's because we
+         only want this in reserved. *)
+      |> List.concat_map ~f:(fun (from, until) ->
+          if is_alphanum from then
+            [ string from
+            ; string until ]
+          else
+            [string from; string until]
+        )
       |> choice
     in
     (* a parser that understands the hole matching cut off points happen at
        delimiters *)
     let rec nested_grammar s =
       (comment_parser
+       (* untested here and in reserved, not sure if needed *)
+       <|> (many1 space >>= fun x -> return @@ String.of_char_list x)
        <|> raw_string_literal_parser (fun ~contents ~left_delimiter:_ ~right_delimiter:_ -> contents)
        <|> escapable_string_literal_parser (fun ~contents ~left_delimiter:_ ~right_delimiter:_ -> contents)
        <|> delimsx
-       <|> (is_not reserved |>> String.of_char))
+       (* Having character-level matching is super useful property of holes,
+          But, that also means that we can accidentally recognize alphanum
+          characters/keywords that denote delimiters midway through token. such
+          as "for" in "before". So holes need to be smart enough to recognize
+          that keywords (between whitespace) trigger delimiter parsing, but not
+          otherwise. That's why the below parser should not be simplified to
+          parse a whole (say, alphanumeric) token, because then we lose the
+          ability for hole to recognize a substring. Instead, we inject spaces around
+          alphanumeric delimiters for parsers above. This means reserved keywords are only
+          recognized if there are spaces around. *)
+       <|> (is_not (reserved <|> (space >>= fun c -> return @@ Char.to_string c)) |>> String.of_char))
         s
     and delimsx s = (between_nested_delims (many nested_grammar)) s
     in
