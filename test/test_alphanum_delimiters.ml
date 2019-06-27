@@ -101,7 +101,6 @@ let%expect_test "base_case_esac_partial_token" =
       | None -> print_string "NO MATCH EXPECTED");
   [%expect_exact {|NO MATCH EXPECTED|}]
 
-(*
 let%expect_test "ocaml_blocks" =
   let source = {|
     module M : sig
@@ -119,8 +118,11 @@ let%expect_test "ocaml_blocks" =
   let rewrite_template = {|struct <bye> end|} in
 
   run (module Matchers.OCaml) source match_template rewrite_template;
-  [%expect_exact {|No matches.|}]
-*)
+  [%expect_exact {|
+    module M : sig
+        type t
+    end = struct <bye> end
+|}]
 
 let%expect_test "ocaml_complex_blocks_with_same_end" =
   let source = {|
@@ -129,29 +131,31 @@ let%expect_test "ocaml_complex_blocks_with_same_end" =
     | _ ->
         let module M = struct type t end
         begin
-        begin
-        match y with
-        | _ -> ()
-        end
+            begin
+            match y with
+            | _ -> ()
+            end
         end
     end
 |}
   in
   let match_template = {|begin :[1] end|} in
-  let rewrite_template = {|-Body->:[1]<-Body-|} in
+  let rewrite_template = {|<begin>:[1]<end>|} in
 
   run (module Matchers.OCaml) source match_template rewrite_template;
   [%expect_exact {|
-    -Body->match x with
+    <begin>match x with
     | _ ->
-        let module M = struct type t<-Body-
-        -Body->begin
-        match y with
-        | _ -> ()<-Body-
-        end
-    end
+        let module M = struct type t end
+        begin
+            begin
+            match y with
+            | _ -> ()
+            end
+        end<end>
 |}]
 
+(*
 let%expect_test "erlang_blocks" =
   let source = {|Big =  fun(X) -> if X > 10 -> true; true -> false end end.|} in
   let match_template = {|fun(:[1]) :[rest] end|} in
@@ -300,3 +304,4 @@ let%expect_test "ruby_blocks_no_whitespace_before_delim" =
   [%expect_exact {|<block>
 class x
 </block>end |}]
+*)
