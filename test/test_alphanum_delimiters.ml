@@ -44,7 +44,15 @@ let%expect_test "base_case_esac" =
   |> (function
       | Some { rewritten_source; _ } -> print_string rewritten_source
       | None -> print_string "BROKEN EXPECT");
-  [%expect_exact {|body|}]
+  [%expect_exact {|<c>b</c>
+<c>o</c>
+<c>d</c>
+<c>y</c>
+<c>b</c>
+<c>o</c>
+<c>d</c>
+<c>y</c>
+body|}]
 
 let%expect_test "nested_case_esac" =
   let source = {|case case body1 case body2 esac case body3 esac esac esac|} in
@@ -55,7 +63,47 @@ let%expect_test "nested_case_esac" =
   |> (function
       | Some { rewritten_source; _ } -> print_string rewritten_source
       | None -> print_string "BROKEN EXPECT");
-  [%expect_exact {|<block>case body1 case body2 esac case body3 esac esac</block>|}]
+  [%expect_exact {|<c>b</c>
+<c>o</c>
+<c>d</c>
+<c>y</c>
+<c>1</c>
+<sp>
+<c>b</c>
+<c>o</c>
+<c>d</c>
+<c>y</c>
+<c>2</c>
+<sp>
+<sp>
+<c>b</c>
+<c>o</c>
+<c>d</c>
+<c>y</c>
+<c>3</c>
+<sp>
+<sp>
+<c>b</c>
+<c>o</c>
+<c>d</c>
+<c>y</c>
+<c>1</c>
+<sp>
+<c>b</c>
+<c>o</c>
+<c>d</c>
+<c>y</c>
+<c>2</c>
+<sp>
+<sp>
+<c>b</c>
+<c>o</c>
+<c>d</c>
+<c>y</c>
+<c>3</c>
+<sp>
+<sp>
+<block>case body1 case body2 esac case body3 esac esac</block>|}]
 
 let%expect_test "nested_case_esac_confirm_different_go" =
   let source = {|case case body1 case body2 esac case body3 esac esac esac|} in
@@ -66,7 +114,59 @@ let%expect_test "nested_case_esac_confirm_different_go" =
   |> (function
       | Some { rewritten_source; _ } -> print_string rewritten_source
       | None -> print_string "BROKEN EXPECT");
-  [%expect_exact {|<block>case body1 case body2</block> <block>body3</block> esac esac|}]
+  [%expect_exact {|<c>c</c>
+<c>a</c>
+<c>s</c>
+<c>e</c>
+<sp>
+<c>b</c>
+<c>o</c>
+<c>d</c>
+<c>y</c>
+<c>1</c>
+<sp>
+<c>c</c>
+<c>a</c>
+<c>s</c>
+<c>e</c>
+<sp>
+<c>b</c>
+<c>o</c>
+<c>d</c>
+<c>y</c>
+<c>2</c>
+<c>c</c>
+<c>a</c>
+<c>s</c>
+<c>e</c>
+<sp>
+<c>b</c>
+<c>o</c>
+<c>d</c>
+<c>y</c>
+<c>1</c>
+<sp>
+<c>c</c>
+<c>a</c>
+<c>s</c>
+<c>e</c>
+<sp>
+<c>b</c>
+<c>o</c>
+<c>d</c>
+<c>y</c>
+<c>2</c>
+<c>b</c>
+<c>o</c>
+<c>d</c>
+<c>y</c>
+<c>3</c>
+<c>b</c>
+<c>o</c>
+<c>d</c>
+<c>y</c>
+<c>3</c>
+<block>case body1 case body2</block> <block>body3</block> esac esac|}]
 
 let%expect_test "base_case_esac_no_whitespace_after" =
   let source = {|case body esac|} in
@@ -118,11 +218,101 @@ let%expect_test "ocaml_blocks" =
   let rewrite_template = {|struct <bye> end|} in
 
   run (module Matchers.OCaml) source match_template rewrite_template;
-  [%expect_exact {|
+  [%expect_exact {|<c>t</c>
+<c>y</c>
+<c>p</c>
+<c>e</c>
+<sp>
+<c>t</c>
+<sp>
+<c>=</c>
+<sp>
+<c>i</c>
+<c>n</c>
+<c>t</c>
+<sp>
+<c>m</c>
+<c>o</c>
+<c>d</c>
+<c>u</c>
+<c>l</c>
+<c>e</c>
+<sp>
+<c>N</c>
+<c>e</c>
+<c>s</c>
+<c>t</c>
+<c>e</c>
+<c>d</c>
+<c>_</c>
+<c>M</c>
+<sp>
+<c>=</c>
+<sp>
+<struct><c>t</c>
+<c>y</c>
+<c>p</c>
+<c>e</c>
+<sp>
+<c>r</c>
+<sp>
+<c>=</c>
+<sp>
+<c>i</c>
+<c>n</c>
+<c>t</c>
+<sp>
+<end>type r = int
+       <c>t</c>
+<c>y</c>
+<c>p</c>
+<c>e</c>
+<sp>
+<c>t</c>
+<sp>
+<c>=</c>
+<sp>
+<c>i</c>
+<c>n</c>
+<c>t</c>
+<sp>
+<c>m</c>
+<c>o</c>
+<c>d</c>
+<c>u</c>
+<c>l</c>
+<c>e</c>
+<sp>
+<c>N</c>
+<c>e</c>
+<c>s</c>
+<c>t</c>
+<c>e</c>
+<c>d</c>
+<c>_</c>
+<c>M</c>
+<sp>
+<c>=</c>
+<sp>
+<struct><c>t</c>
+<c>y</c>
+<c>p</c>
+<c>e</c>
+<sp>
+<c>r</c>
+<sp>
+<c>=</c>
+<sp>
+<c>i</c>
+<c>n</c>
+<c>t</c>
+<sp>
+
     module M : sig
         type t
     end = struct <bye> end
-|}]
+<end>type r = int
+       |}]
 
 let%expect_test "ocaml_complex_blocks_with_same_end" =
   let source = {|
@@ -143,27 +333,244 @@ let%expect_test "ocaml_complex_blocks_with_same_end" =
   let rewrite_template = {|<begin>:[1]<end>|} in
 
   run (module Matchers.OCaml) source match_template rewrite_template;
-  [%expect_exact {|
+  [%expect_exact {|<c>m</c>
+<c>a</c>
+<c>t</c>
+<c>c</c>
+<c>h</c>
+<sp>
+<c>x</c>
+<sp>
+<c>w</c>
+<c>i</c>
+<c>t</c>
+<c>h</c>
+<sp>
+<c>|</c>
+<sp>
+<c>_</c>
+<sp>
+<c>-</c>
+<c>></c>
+<sp>
+<c>l</c>
+<c>e</c>
+<c>t</c>
+<sp>
+<c>m</c>
+<c>o</c>
+<c>d</c>
+<c>u</c>
+<c>l</c>
+<c>e</c>
+<sp>
+<c>M</c>
+<sp>
+<c>=</c>
+<sp>
+<struct><c>t</c>
+<c>y</c>
+<c>p</c>
+<c>e</c>
+<sp>
+<c>t</c>
+<sp>
+<end>type t <sp>
+<begin><begin><c>m</c>
+<c>a</c>
+<c>t</c>
+<c>c</c>
+<c>h</c>
+<sp>
+<c>y</c>
+<sp>
+<c>w</c>
+<c>i</c>
+<c>t</c>
+<c>h</c>
+<sp>
+<c>|</c>
+<sp>
+<c>_</c>
+<sp>
+<c>-</c>
+<c>></c>
+<sp>
+<sp>
+<end>match y with
+            | _ -> ()
+            <sp>
+<end>beginmatch y with
+            | _ -> ()
+            end
+        <c>m</c>
+<c>a</c>
+<c>t</c>
+<c>c</c>
+<c>h</c>
+<sp>
+<c>x</c>
+<sp>
+<c>w</c>
+<c>i</c>
+<c>t</c>
+<c>h</c>
+<sp>
+<c>|</c>
+<sp>
+<c>_</c>
+<sp>
+<c>-</c>
+<c>></c>
+<sp>
+<c>l</c>
+<c>e</c>
+<c>t</c>
+<sp>
+<c>m</c>
+<c>o</c>
+<c>d</c>
+<c>u</c>
+<c>l</c>
+<c>e</c>
+<sp>
+<c>M</c>
+<sp>
+<c>=</c>
+<sp>
+<struct><c>t</c>
+<c>y</c>
+<c>p</c>
+<c>e</c>
+<sp>
+<c>t</c>
+<sp>
+<end>type t <sp>
+<begin><begin><c>m</c>
+<c>a</c>
+<c>t</c>
+<c>c</c>
+<c>h</c>
+<sp>
+<c>y</c>
+<sp>
+<c>w</c>
+<c>i</c>
+<c>t</c>
+<c>h</c>
+<sp>
+<c>|</c>
+<sp>
+<c>_</c>
+<sp>
+<c>-</c>
+<c>></c>
+<sp>
+<sp>
+<end>match y with
+            | _ -> ()
+            <sp>
+
     <begin>match x with
     | _ ->
-        let module M = struct type t end
-        begin
-            begin
-            match y with
+        let module M = structtype t end
+        beginbeginmatch y with
             | _ -> ()
             end
         end<end>
-|}]
+<end>beginmatch y with
+            | _ -> ()
+            end
+        |}]
 
-(*
 let%expect_test "erlang_blocks" =
   let source = {|Big =  fun(X) -> if X > 10 -> true; true -> false end end.|} in
   let match_template = {|fun(:[1]) :[rest] end|} in
-  let rewrite_template = {|-Block->:[rest]<-Block-|} in
+  let rewrite_template = {|<fun>:[rest]<end>|} in
 
   run (module Matchers.Erlang) source match_template rewrite_template;
-  [%expect_exact {|Big =  -Block->-> if X > 10 -> true; true -> false<-Block- end.|}]
+  [%expect_exact {|<c>X</c>
+<c>-</c>
+<c>></c>
+<sp>
+<if><c>X</c>
+<sp>
+<c>></c>
+<sp>
+<c>1</c>
+<c>0</c>
+<sp>
+<c>-</c>
+<c>></c>
+<sp>
+<c>t</c>
+<c>r</c>
+<c>u</c>
+<c>e</c>
+<c>;</c>
+<sp>
+<c>t</c>
+<c>r</c>
+<c>u</c>
+<c>e</c>
+<sp>
+<c>-</c>
+<c>></c>
+<sp>
+<c>f</c>
+<c>a</c>
+<c>l</c>
+<c>s</c>
+<c>e</c>
+<sp>
+<end>X > 10 -> true; true -> false <c>X</c>
+<c>-</c>
+<c>></c>
+<sp>
+<if><c>X</c>
+<sp>
+<c>></c>
+<sp>
+<c>1</c>
+<c>0</c>
+<sp>
+<c>-</c>
+<c>></c>
+<sp>
+<c>t</c>
+<c>r</c>
+<c>u</c>
+<c>e</c>
+<c>;</c>
+<sp>
+<c>t</c>
+<c>r</c>
+<c>u</c>
+<c>e</c>
+<sp>
+<c>-</c>
+<c>></c>
+<sp>
+<c>f</c>
+<c>a</c>
+<c>l</c>
+<c>s</c>
+<c>e</c>
+<sp>
+Big =  <fun>-> ifX > 10 -> true; true -> false end<end>.<end>X > 10 -> true; true -> false |}]
 
+let%expect_test "ruby_blocks" =
+  let source = {| class before_ end |}
+  in
+  let match_template = {|class :[1] end|} in
+  let rewrite_template = {|<class>:[1]<end>|} in
+
+  run (module Matchers.Ruby) source match_template rewrite_template;
+  [%expect_exact {|<c>b</c>
+<c>e</c>
+No matches.|}]
+
+(*
 let%expect_test "ruby_blocks" =
   let source = {|
 class ActionController::Base
@@ -176,7 +583,7 @@ end
 |}
   in
   let match_template = {|class :[1] end|} in
-  let rewrite_template = {|-Block->:[1]<-Block-|} in
+  let rewrite_template = {|<class>:[1]<end>|} in
 
   run (module Matchers.Ruby) source match_template rewrite_template;
   [%expect_exact {|

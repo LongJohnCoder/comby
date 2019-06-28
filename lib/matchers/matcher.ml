@@ -11,7 +11,7 @@ let configuration_ref = ref (Configuration.create ())
 let weaken_delimiter_hole_matching = false
 
 let debug = false
-let debugx = false
+let debugx = true
 
 let f _ = return Unit
 
@@ -227,34 +227,36 @@ module Make (Syntax : Syntax.S) = struct
 
   let generate_hole_parser ?priority_left_delimiter:left_delimiter ?priority_right_delimiter:right_delimiter =
     let is_alphanum _delim = Pcre.(pmatch ~rex:(regexp "^[[:alnum:]]*$") _delim) in
-    let between_nested_delims p from =
-      let until = until_of_from from in
-      let p =
-        if is_alphanum from then
-          between (string from) (string until) p
-        else
-          between (string from) (string until) p
-      in
-      p |>> fun result -> (String.concat @@ [from] @ result @ [until])
-    in
     let between_nested_delims p =
-      let trigger_nested_parsing_prefix =
+      let capture_delimiter_result p ~from =
+        let until = until_of_from from in
+        let p =
+          if is_alphanum from then
+            attempt @@ between
+              (string from << spaces1 >>= fun d -> Format.printf "<%s>" d; return d)
+              (string until >>= fun d -> Format.printf "<%s>" d; return d)
+              p >>= fun x -> Format.printf "%s" @@ String.concat x; return x
+          else
+            between (string from) (string until) p
+        in
+        p |>> fun result ->
+        (*if debugx then Format.printf "<%s>%s<%s>@." from (String.concat result) until;*)
+        (String.concat @@ [from] @ result @ [until])
+      in
+      let if_weaken =
         if weaken_delimiter_hole_matching then
           match left_delimiter, right_delimiter with
-          | Some left_delimiter, Some right_delimiter ->
-            [ (left_delimiter, right_delimiter) ]
+          | Some left_delimiter, Some right_delimiter -> [ (left_delimiter, right_delimiter) ]
           | _ -> Syntax.user_defined_delimiters
         else
           Syntax.user_defined_delimiters
       in
-      trigger_nested_parsing_prefix
-      |> List.map ~f:fst
-      |> List.map ~f:(between_nested_delims p)
+      if_weaken
+      |> List.map ~f:(fun pair -> capture_delimiter_result p ~from:(fst pair))
       |> choice
     in
-    (* applies looser delimiter constraints for matching *)
     let reserved =
-      let trigger_nested_parsing_prefix =
+      let weaken =
         if weaken_delimiter_hole_matching then
           match left_delimiter, right_delimiter with
           | Some left_delimiter, Some right_delimiter ->
@@ -263,14 +265,14 @@ module Make (Syntax : Syntax.S) = struct
         else
           Syntax.user_defined_delimiters
       in
-      trigger_nested_parsing_prefix
-      (* why not do this up top? dunno, I think it's because we
-         only want this in reserved. *)
+      (* *if* the delimiter is alphanum, it is only reserved (alternatively parsed as a real
+         delimiter) if it has whitespace around it. If not, it is not reserved, and parsing should
+         just consume it. such as the case of 'before' and not triggering on 'for'. *)
+      weaken
       |> List.concat_map ~f:(fun (from, until) ->
-          (*Format.printf "Mapping delim... will attempt@.";*)
           if is_alphanum from then
-            [ string from
-            ; string until (*<< spaces1*) ]
+            (* << (is_not (char 'e' <|> char '_')) *)
+            [string from; string until]
           else
             [string from; string until]
         )
@@ -286,7 +288,7 @@ module Make (Syntax : Syntax.S) = struct
             return @@ String.of_char_list x)
        <|> raw_string_literal_parser (fun ~contents ~left_delimiter:_ ~right_delimiter:_ -> contents)
        <|> escapable_string_literal_parser (fun ~contents ~left_delimiter:_ ~right_delimiter:_ -> contents)
-       <|> (delimsx >>= fun x -> if debugx then Format.printf "<d>%s</d>@." x; return x)
+       <|> (delims_over_holes >>= fun x -> return x)
        (* Having character-level matching is super useful property of holes,
           But, that also means that we can accidentally recognize alphanum
           characters/keywords that denote delimiters midway through token. such
@@ -300,7 +302,7 @@ module Make (Syntax : Syntax.S) = struct
        <|> (is_not (reserved <|> (space >>= fun c -> return @@ Char.to_string c)) >>= fun c ->
             if debugx then Format.printf "<c>%c</c>@." c; return @@ String.of_char c))
         s
-    and delimsx s = (between_nested_delims (many nested_grammar)) s
+    and delims_over_holes s = (between_nested_delims (many nested_grammar)) s
     in
     nested_grammar
 
@@ -357,10 +359,12 @@ module Make (Syntax : Syntax.S) = struct
 
   let generate_hole_for_literal sort ~contents ~left_delimiter ~right_delimiter s =
     let p =
-      many (attempt (hole_parser `Lazy sort)
-            <|> attempt (hole_parser `Single sort)
-            <|> ((many1 (is_not (string ":[" <|> string ":[["))
-                  |>> String.of_char_list) |>> generate_string_token_parser))
+      (* attempt :[1], if it fails, attempt :[[1]] *)
+      many
+        (attempt (hole_parser `Lazy sort)
+         <|> attempt (hole_parser `Single sort)
+         <|> ((many1 (is_not (string ":[" <|> string ":[["))
+               |>> String.of_char_list) |>> generate_string_token_parser))
     in
     match parse_string p contents "" with
     | Success p ->
