@@ -11,7 +11,7 @@ let configuration_ref = ref (Configuration.create ())
 let weaken_delimiter_hole_matching = false
 
 let debug = false
-let debugx = true
+let debugx = false
 
 let f _ = return Unit
 
@@ -233,9 +233,9 @@ module Make (Syntax : Syntax.S) = struct
         let p =
           if is_alphanum from then
             attempt @@ between
-              (string from << spaces1 >>= fun d -> Format.printf "<%s>" d; return d)
-              (string until >>= fun d -> Format.printf "<%s>" d; return d)
-              p >>= fun x -> Format.printf "%s" @@ String.concat x; return x
+              (string from >>= fun d -> if debugx then Format.printf "<%s>" d; return d)
+              (string until >>= fun d -> if debugx then Format.printf "<%s>" d; return d)
+              p >>= fun x -> if debugx then Format.printf "%s" @@ String.concat x; return x
           else
             between (string from) (string until) p
         in
@@ -271,8 +271,13 @@ module Make (Syntax : Syntax.S) = struct
       weaken
       |> List.concat_map ~f:(fun (from, until) ->
           if is_alphanum from then
-            (* << (is_not (char 'e' <|> char '_')) *)
-            [string from; string until]
+            (* if it's alphanum, only consider it reserved if there is, say, whitespace after and so
+               handle alternatively. otherwise, return empty to indicate 'this sequence of characters
+               is not reserved' *)
+            [ string from
+            ; string until
+            ]
+            (*[]*)
           else
             [string from; string until]
         )
@@ -282,27 +287,20 @@ module Make (Syntax : Syntax.S) = struct
        delimiters *)
     let rec nested_grammar s =
       (comment_parser
-       (* untested here and in reserved, not sure if needed *)
-       <|> (many1 space >>= fun x ->
-            if debugx then Format.printf "<sp>@.";
-            return @@ String.of_char_list x)
+       (* space parsing untested here and in reserved, not sure if needed *)
+       <|> (many1 space >>= fun x -> return @@ String.of_char_list x)
        <|> raw_string_literal_parser (fun ~contents ~left_delimiter:_ ~right_delimiter:_ -> contents)
        <|> escapable_string_literal_parser (fun ~contents ~left_delimiter:_ ~right_delimiter:_ -> contents)
        <|> (delims_over_holes >>= fun x -> return x)
-       (* Having character-level matching is super useful property of holes,
-          But, that also means that we can accidentally recognize alphanum
-          characters/keywords that denote delimiters midway through token. such
-          as "for" in "before". So holes need to be smart enough to recognize
-          that keywords (between whitespace) trigger delimiter parsing, but not
-          otherwise. That's why the below parser should not be simplified to
-          parse a whole (say, alphanumeric) token, because then we lose the
-          ability for hole to recognize a substring. Instead, we inject spaces around
-          alphanumeric delimiters for parsers above. This means reserved keywords are only
-          recognized if there are spaces around. *)
-       <|> (is_not (reserved <|> (space >>= fun c -> return @@ Char.to_string c)) >>= fun c ->
-            if debugx then Format.printf "<c>%c</c>@." c; return @@ String.of_char c))
+       <|>
+       (* only consume if not reserved. because if it is reserved, we want to trigger the 'many'
+          to continue below, in (many nested_grammar) *)
+       (is_not (reserved <|> (space >>= fun c -> return @@ Char.to_string c)) >>= fun c ->
+        if debugx then Format.printf "<c>%c</c>@." c; return @@ String.of_char c))
         s
-    and delims_over_holes s = (between_nested_delims (many nested_grammar)) s
+    and delims_over_holes s =
+      (between_nested_delims (many nested_grammar))
+        s
     in
     nested_grammar
 
