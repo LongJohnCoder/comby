@@ -227,21 +227,26 @@ module Make (Syntax : Syntax.S) = struct
 
   let generate_hole_parser ?priority_left_delimiter:left_delimiter ?priority_right_delimiter:right_delimiter =
     let is_alphanum _delim = Pcre.(pmatch ~rex:(regexp "^[[:alnum:]]*$") _delim) in
+    let whitespace =
+      many1 space |>> String.of_char_list
+    in
     let between_nested_delims p =
       let capture_delimiter_result p ~from =
         let until = until_of_from from in
         let p =
           if is_alphanum from then
-            attempt @@ between
-              (string from >>= fun d -> if debugx then Format.printf "<%s>" d; return d)
-              (string until >>= fun d -> if debugx then Format.printf "<%s>" d; return d)
-              p >>= fun x -> if debugx then Format.printf "%s" @@ String.concat x; return x
+            (* let between left right =
+               left >> p << right *)
+            (string from >>= fun d -> whitespace >>= fun s -> return (d^s))
+            >>= fun left_with_spaces ->
+            p >>= fun in_between ->
+            string until >>= fun right ->
+            return (left_with_spaces^(String.concat in_between)^right)
           else
             between (string from) (string until) p
+            >>= fun result -> return (String.concat @@ [from] @ result @ [until])
         in
-        p |>> fun result ->
-        (*if debugx then Format.printf "<%s>%s<%s>@." from (String.concat result) until;*)
-        (String.concat @@ [from] @ result @ [until])
+        p
       in
       let if_weaken =
         if weaken_delimiter_hole_matching then
