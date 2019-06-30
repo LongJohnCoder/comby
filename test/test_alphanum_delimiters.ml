@@ -124,13 +124,13 @@ let%expect_test "ocaml_blocks" =
     end = struct <bye> end
 |}]
 
-let%expect_test "ocaml_complex_blocks_with_same_end" =
+let%expect_test "ocaml_consecutive_blocks_with_same_end" =
   let source = {|
     begin
     match x with
     | _ ->
         let module M = struct type t end
-        begin x
+        begin
             begin
             match y with
             | _ -> ()

@@ -255,9 +255,14 @@ module Make (Syntax : Syntax.S) = struct
               if debugx then Format.printf "Past required delim terminal <whitespace>. next: %s@." from;
               string from >>= fun d ->
               if debugx then Format.printf "Past string from for: <%s>" d;
-              required_delimiter_terminal >>= fun s ->
+              (* look_ahead ensures that there is whitespace after this
+                 delimiter, so it will succeed in registering this delimiter.
+                 but we don't return the whitespace after, which will be handled
+                 by a different whitespace parser: either they one that checks
+                 for a whitespace prefix, or in the common one *)
+              look_ahead @@ required_delimiter_terminal >>= fun s ->
               if debugx then Format.printf "Past required delimiter terminal: <%s>" s;
-              return (s1^d^s))
+              return (s1^d))
              >>= fun left_with_spaces ->
              p >>= fun in_between ->
              string until >>= fun right ->
