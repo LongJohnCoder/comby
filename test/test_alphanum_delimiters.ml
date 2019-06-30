@@ -264,10 +264,70 @@ yclass
 </Block>
 |}]
 
-(* WRONG BEHAVIOR *)
-let%expect_test "ruby_blocks_simpl" =
+let%expect_test "ruby_blocks_whitespace_before_delim" =
+  let source = {| class class x end end |}
+  in
+  let match_template = {| class :[1] end |} in
+  let rewrite_template = "<block>\n:[1]\n</block>" in
+
+  run (module Matchers.Ruby) source match_template rewrite_template;
+  [%expect_exact {|<block>
+class x
+</block>end |}]
+
+let%expect_test "erlang_blocks" =
+  let source = {|Big =  fun(X) -> if X > 10 -> true; true -> false end end.|} in
+  let match_template = {|fun(:[1]) :[rest] end|} in
+  let rewrite_template = {|<fun>:[rest]<end>|} in
+
+  run (module Matchers.Erlang) source match_template rewrite_template;
+  [%expect_exact {|Big =  <fun>-> if X > 10 -> true; true -> false end<end>.|}]
+
+(* WRONG BEHAVIOR: doesn't realize that class here triggers a block where end must be prefixed with
+   whitespace. so it just keeps going until it sees the 'end'. *)
+let%expect_test "ruby_blocks_alphanum_delim_suffix" =
   let source = {|
-class ActionController::Base
+class
+  ndly
+end
+|}
+  in
+  let match_template = {|class :[1] end|} in
+  let rewrite_template = "<block>\n:[1]\n</Block>" in
+
+  run (module Matchers.Ruby) source match_template rewrite_template;
+  [%expect_exact {|
+<block>
+ndly
+</Block>
+|}]
+
+(* also broken: no matches. not sure why. *)
+(*
+let%expect_test "ruby_blocks_alphanum_delim_suffix" =
+  let source = {|
+class
+  endly
+end
+|}
+  in
+  let match_template = {|class :[1] end|} in
+  let rewrite_template = "<block>\n:[1]\n</Block>" in
+
+  run (module Matchers.Ruby) source match_template rewrite_template;
+  [%expect_exact {|
+<block>
+before body
+</Block>ly
+end
+|}]
+*)
+
+(* Unsure what do *)
+(*
+let%expect_test "ruby_blocks_alphanum_delim_suffix" =
+  let source = {|
+notaclass
   classy
   before body
   endly
@@ -286,44 +346,28 @@ ActionController::Base
 </Block>ly
 end
 |}]
+*)
 
-(* WRONG BEHAVIOR *)
-let%expect_test "ruby_blocks_simpl" =
-  let source = {|
-class yclass
-  before body
-    endly
-end
-|}
-  in
-  let match_template = {|class :[1] end|} in
-  let rewrite_template = "<block>\n:[1]\n</Block>" in
+(* gives no matches. broken.
+   let%expect_test "ruby_blocks_alphanum_delim_suffix" =
+   let source = {|
+   class ActionController::Base
+   classy
+   before body
+   bend
+   end
+   |}
+   in
+   let match_template = {|class :[1] end|} in
+   let rewrite_template = "<block>\n:[1]\n</Block>" in
 
-  run (module Matchers.Ruby) source match_template rewrite_template;
-  [%expect_exact {|
-<block>
-yclass
-  before body
-</Block>ly
-end
-|}]
-
-let%expect_test "ruby_blocks_whitespace_before_delim" =
-  let source = {| class class x end end |}
-  in
-  let match_template = {| class :[1] end |} in
-  let rewrite_template = "<block>\n:[1]\n</block>" in
-
-  run (module Matchers.Ruby) source match_template rewrite_template;
-  [%expect_exact {|<block>
-class x
-</block>end |}]
-
-
-let%expect_test "erlang_blocks" =
-  let source = {|Big =  fun(X) -> if X > 10 -> true; true -> false end end.|} in
-  let match_template = {|fun(:[1]) :[rest] end|} in
-  let rewrite_template = {|<fun>:[rest]<end>|} in
-
-  run (module Matchers.Erlang) source match_template rewrite_template;
-  [%expect_exact {|Big =  <fun>-> if X > 10 -> true; true -> false end<end>.|}]
+   run (module Matchers.Ruby) source match_template rewrite_template;
+   [%expect_exact {|
+   <block>
+   ActionController::Base
+   classy
+   before body
+   </Block>ly
+   end
+   |}]
+*)

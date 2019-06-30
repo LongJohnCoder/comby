@@ -245,28 +245,24 @@ module Make (Syntax : Syntax.S) = struct
         let p =
           if is_alphanum from then
             let required_delimiter_terminal = whitespace in
-            (* let between left right =
-               left >> p << right *)
-            (* we need to attempt on each alphanum because otherwise if we fail on the
-               first one like 'begin', then we won't even try 'struct'... This isn't needed
-               for () or {} because they are unique. but alphanums are not... *)
+            (* Use attempt so that, e.g., 'struct' is tried after 'begin' delimiters. *)
             attempt @@
-            ((required_delimiter_terminal >>= fun s1 ->
-              if debugx then Format.printf "Past required delim terminal <whitespace>. next: %s@." from;
-              string from >>= fun d ->
-              if debugx then Format.printf "Past string from for: <%s>" d;
-              (* look_ahead ensures that there is whitespace after this
-                 delimiter, so it will succeed in registering this delimiter.
-                 but we don't return the whitespace after, which will be handled
-                 by a different whitespace parser: either they one that checks
-                 for a whitespace prefix, or in the common one *)
-              look_ahead @@ required_delimiter_terminal >>= fun s ->
-              if debugx then Format.printf "Past required delimiter terminal: <%s>" s;
-              return (s1^d))
-             >>= fun left_with_spaces ->
+            (required_delimiter_terminal >>= fun prefix_opening ->
+             if debugx then Format.printf "Past required delim terminal <whitespace>. next: %s@." from;
+             string from >>= fun delimiter ->
+             if debugx then Format.printf "Past string from for: <%s>" delimiter;
+             (* Use look_ahead to ensure that there is, e.g., whitespace after this
+                possible delimiter, but without consuming input. Whitespace needs to
+                not be consumed so that we can detect subsequent delimiters. *)
+             look_ahead @@ required_delimiter_terminal >>= fun unconsumed_opening_suffix ->
+             if debugx then Format.printf "Past required delimiter terminal: <%s>" unconsumed_opening_suffix;
              p >>= fun in_between ->
              string until >>= fun right ->
-             return (left_with_spaces^(String.concat in_between)^right))
+             (* look_ahead untested *)
+             look_ahead @@ required_delimiter_terminal >>= fun _unconsumed_closing_suffix ->
+             return ((prefix_opening^delimiter)
+                     ^(String.concat in_between)
+                     ^right))
           else
             between (string from) (string until) p
             >>= fun result -> return (String.concat @@ [from] @ result @ [until])
