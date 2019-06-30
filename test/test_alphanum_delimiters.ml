@@ -155,14 +155,6 @@ let%expect_test "ocaml_consecutive_blocks_with_same_end" =
         end<end>
 |}]
 
-let%expect_test "erlang_blocks" =
-  let source = {|Big =  fun(X) -> if X > 10 -> true; true -> false end end.|} in
-  let match_template = {|fun(:[1]) :[rest] end|} in
-  let rewrite_template = {|<fun>:[rest]<end>|} in
-
-  run (module Matchers.Erlang) source match_template rewrite_template;
-  [%expect_exact {|Big =  <fun>-> if X > 10 -> true; true -> false end<end>.|}]
-
 let%expect_test "ruby_blocks" =
   let source = {| class before_ end |}
   in
@@ -254,7 +246,6 @@ let%expect_test "ocaml_blocks" =
 |}]
 
 
-(* wrong behavior *)
 let%expect_test "ruby_blocks_simpl" =
   let source = {|
 class yclass
@@ -273,7 +264,6 @@ yclass
 </Block>
 |}]
 
-(*
 (* WRONG BEHAVIOR *)
 let%expect_test "ruby_blocks_simpl" =
   let source = {|
@@ -318,11 +308,7 @@ yclass
 end
 |}]
 
-
-(* WRONG BEHAVIOR:
-   ([x]) is matching ( with ].
-   delim parser is not triggered. *)
-let%expect_test "ruby_blocks_no_whitespace_before_delim" =
+let%expect_test "ruby_blocks_whitespace_before_delim" =
   let source = {| class class x end end |}
   in
   let match_template = {| class :[1] end |} in
@@ -332,4 +318,12 @@ let%expect_test "ruby_blocks_no_whitespace_before_delim" =
   [%expect_exact {|<block>
 class x
 </block>end |}]
-*)
+
+
+let%expect_test "erlang_blocks" =
+  let source = {|Big =  fun(X) -> if X > 10 -> true; true -> false end end.|} in
+  let match_template = {|fun(:[1]) :[rest] end|} in
+  let rewrite_template = {|<fun>:[rest]<end>|} in
+
+  run (module Matchers.Erlang) source match_template rewrite_template;
+  [%expect_exact {|Big =  <fun>-> if X > 10 -> true; true -> false end<end>.|}]
