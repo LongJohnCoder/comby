@@ -101,6 +101,7 @@ let%expect_test "base_case_esac_partial_token" =
       | None -> print_string "NO MATCH EXPECTED");
   [%expect_exact {|NO MATCH EXPECTED|}]
 
+(*
 let%expect_test "ocaml_blocks" =
   let source = {|
     module M : sig
@@ -123,7 +124,9 @@ let%expect_test "ocaml_blocks" =
         type t
     end = struct <bye> end
 |}]
+*)
 
+(*
 let%expect_test "ocaml_complex_blocks_with_same_end" =
   let source = {|
     begin
@@ -235,8 +238,29 @@ ActionController::Base
   before body
 </Block>
 |}]
+*)
 
-(* WRONG BEHAVIOR *)
+let%expect_test "ocaml_blocks" =
+  let source = {|
+    struct
+       X = struct
+         X
+       end
+    end
+|}
+  in
+  let match_template = {|struct :[1] end|} in
+  let rewrite_template = {|struct <bye> end|} in
+
+  run (module Matchers.OCaml) source match_template rewrite_template;
+  [%expect_exact {|
+    struct
+       module Nested_M = struct <bye> end
+    end
+|}]
+
+
+(* wrong behavior *)
 let%expect_test "ruby_blocks_simpl" =
   let source = {|
 class yclass

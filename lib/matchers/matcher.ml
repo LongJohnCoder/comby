@@ -13,7 +13,7 @@ let configuration_ref = ref (Configuration.create ())
 let weaken_delimiter_hole_matching = false
 
 let debug = false
-let debugx = false
+let debugx = true
 
 let f _ = return Unit
 
@@ -29,7 +29,7 @@ let is_not p s =
   else
     match read_char s with
     | Some c ->
-      if debugx then Format.printf "Char: %c@." c;
+      (*if debugx then Format.printf "Char: %c@." c;*)
       Consumed_ok (c, advance_state s 1, No_error)
     | None ->
       if debugx then Format.printf "empty";
@@ -247,15 +247,21 @@ module Make (Syntax : Syntax.S) = struct
             let required_delimiter_terminal = whitespace in
             (* let between left right =
                left >> p << right *)
-            (string from >>= fun d ->
-             if debugx then Format.printf "Past string from for: <%s>" d;
-             required_delimiter_terminal >>= fun s ->
-             if debugx then Format.printf "Past required delimiter terminal: <%s>" s;
-             return (d^s))
-            >>= fun left_with_spaces ->
-            p >>= fun in_between ->
-            string until >>= fun right ->
-            return (left_with_spaces^(String.concat in_between)^right)
+            (* we need to attempt on each alphanum because otherwise if we fail on the
+               first one like 'begin', then we won't even try 'struct'... This isn't needed
+               for () or {} because they are unique. but alphanums are not... *)
+            attempt @@
+            ((required_delimiter_terminal >>= fun s1 ->
+              if debugx then Format.printf "Past required delim terminal <whitespace>. next: %s@." from;
+              string from >>= fun d ->
+              if debugx then Format.printf "Past string from for: <%s>" d;
+              required_delimiter_terminal >>= fun s ->
+              if debugx then Format.printf "Past required delimiter terminal: <%s>" s;
+              return (s1^d^s))
+             >>= fun left_with_spaces ->
+             p >>= fun in_between ->
+             string until >>= fun right ->
+             return (left_with_spaces^(String.concat in_between)^right))
           else
             between (string from) (string until) p
             >>= fun result -> return (String.concat @@ [from] @ result @ [until])
@@ -293,7 +299,8 @@ module Make (Syntax : Syntax.S) = struct
             (* if it's alphanum, only consider it reserved if there is, say, whitespace after and so
                handle alternatively. otherwise, return empty to indicate 'this sequence of characters
                is not reserved' *)
-            [ (string from >>= fun r -> whitespace >>= fun w -> return (r^w))
+            (* doing whitespace before here causes is_not to fail *)
+            [ (whitespace >>= fun w1 -> string from >>= fun r -> whitespace >>= fun w -> return (w1^r^w))
             ; string until
             ]
             (*[]*)
@@ -307,14 +314,14 @@ module Make (Syntax : Syntax.S) = struct
     let rec nested_grammar s =
       (comment_parser
        (* space parsing untested here and in reserved, not sure if needed *)
-       <|> (many1 space >>= fun x -> return @@ String.of_char_list x)
        <|> raw_string_literal_parser (fun ~contents ~left_delimiter:_ ~right_delimiter:_ -> contents)
        <|> escapable_string_literal_parser (fun ~contents ~left_delimiter:_ ~right_delimiter:_ -> contents)
        (* without attempt, delims_over_holes will partially succeed on things like "for" in "before".
           this partial success means that other options in choice are not exercised. by putting attempt,
           failures where "for" is not followed by whitespace fails, triggering the 'is_not' case
           below, and behaving as expected. *)
-       <|> (attempt @@ delims_over_holes >>= fun x -> return x)
+       <|> (attempt @@ delims_over_holes >>= fun x -> if debugx then Format.printf "Delim yes: %s@." x; return x)
+       <|> (many1 space >>= fun x -> if debugx then Format.printf "<sp>@."; return @@ String.of_char_list x)
        <|>
        (* only consume if not reserved. because if it is reserved, we want to trigger the 'many'
           to continue below, in (many nested_grammar) *)
