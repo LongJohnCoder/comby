@@ -236,9 +236,7 @@ module Make (Syntax : Syntax.S) = struct
 
   let generate_hole_parser ?priority_left_delimiter:left_delimiter ?priority_right_delimiter:right_delimiter =
     let is_alphanum _delim = Pcre.(pmatch ~rex:(regexp "^[[:alnum:]]*$") _delim) in
-    let whitespace =
-      many1 space |>> String.of_char_list
-    in
+    let whitespace = many1 space |>> String.of_char_list in
     let between_nested_delims p =
       let capture_delimiter_result p ~from =
         let until = until_of_from from in
@@ -249,20 +247,20 @@ module Make (Syntax : Syntax.S) = struct
             attempt @@
             (required_delimiter_terminal >>= fun prefix_opening ->
              if debugx then Format.printf "Past required delim terminal <whitespace>. next: %s@." from;
-             string from >>= fun delimiter ->
-             if debugx then Format.printf "Past string from for: <%s>" delimiter;
+             string from >>= fun open_delimiter ->
+             if debugx then Format.printf "Past string from for: <%s>" open_delimiter;
              (* Use look_ahead to ensure that there is, e.g., whitespace after this
                 possible delimiter, but without consuming input. Whitespace needs to
                 not be consumed so that we can detect subsequent delimiters. *)
              look_ahead @@ required_delimiter_terminal >>= fun unconsumed_opening_suffix ->
              if debugx then Format.printf "Past required delimiter terminal: <%s>" unconsumed_opening_suffix;
              p >>= fun in_between ->
-             string until >>= fun right ->
+             string until >>= fun close_delimiter ->
              (* look_ahead untested *)
              look_ahead @@ required_delimiter_terminal >>= fun _unconsumed_closing_suffix ->
-             return ((prefix_opening^delimiter)
+             return ((prefix_opening^open_delimiter)
                      ^(String.concat in_between)
-                     ^right))
+                     ^close_delimiter))
           else
             between (string from) (string until) p
             >>= fun result -> return (String.concat @@ [from] @ result @ [until])
@@ -291,20 +289,19 @@ module Make (Syntax : Syntax.S) = struct
         else
           Syntax.user_defined_delimiters
       in
-      (* *if* the delimiter is alphanum, it is only reserved (alternatively parsed as a real
-         delimiter) if it has whitespace around it. If not, it is not reserved, and parsing should
-         just consume it. such as the case of 'before' and not triggering on 'for'. *)
       weaken
       |> List.concat_map ~f:(fun (from, until) ->
           if is_alphanum from then
             (* if it's alphanum, only consider it reserved if there is, say, whitespace after and so
                handle alternatively. otherwise, return empty to indicate 'this sequence of characters
                is not reserved' *)
-            (* doing whitespace before here causes is_not to fail *)
-            [ (whitespace >>= fun w1 -> string from >>= fun r -> whitespace >>= fun w -> return (w1^r^w))
+            [(whitespace
+              >>= fun prefix_whitespace -> string from
+              >>= fun in_between -> whitespace
+              >>= fun suffix_whitespace ->
+              return (prefix_whitespace^in_between^suffix_whitespace))
             ; string until
             ]
-            (*[]*)
           else
             [string from; string until]
         )
@@ -330,8 +327,7 @@ module Make (Syntax : Syntax.S) = struct
         if debugx then Format.printf "<c>%c</c>@." c; return @@ String.of_char c))
         s
     and delims_over_holes s =
-      (between_nested_delims (many nested_grammar))
-        s
+      (between_nested_delims (many nested_grammar)) s
     in
     nested_grammar
 
