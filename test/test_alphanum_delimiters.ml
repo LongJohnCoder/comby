@@ -155,14 +155,13 @@ let%expect_test "ocaml_complex_blocks_with_same_end" =
         end<end>
 |}]
 
-(*
 let%expect_test "erlang_blocks" =
   let source = {|Big =  fun(X) -> if X > 10 -> true; true -> false end end.|} in
   let match_template = {|fun(:[1]) :[rest] end|} in
   let rewrite_template = {|<fun>:[rest]<end>|} in
 
   run (module Matchers.Erlang) source match_template rewrite_template;
-  [%expect_exact {|Big =  <fun>-> if X > 10 -> true; true -> false<end> end.|}]
+  [%expect_exact {|Big =  <fun>-> if X > 10 -> true; true -> false end<end>.|}]
 
 let%expect_test "ruby_blocks" =
   let source = {| class before_ end |}
@@ -172,9 +171,7 @@ let%expect_test "ruby_blocks" =
 
   run (module Matchers.Ruby) source match_template rewrite_template;
   [%expect_exact {| <class>before_<end> |}]
-*)
 
-(*
 let%expect_test "ruby_blocks" =
   let source = {|
 class ActionController::Base
@@ -191,12 +188,12 @@ end
 
   run (module Matchers.Ruby) source match_template rewrite_template;
   [%expect_exact {|
--Block->ActionController::Base
+<class>ActionController::Base
   before_filter :generate_css_from_less
 
   def generate_css_from_less
-    Less::More.generate_all<-Block-
-end
+    Less::More.generate_all
+  end<end>
 |}]
 
 let%expect_test "ruby_blocks_simpl" =
@@ -239,6 +236,7 @@ ActionController::Base
 </Block>
 |}]
 
+(* WRONG BEHAVIOR *)
 let%expect_test "ruby_blocks_simpl" =
   let source = {|
 class yclass
@@ -251,12 +249,12 @@ end
 
   run (module Matchers.Ruby) source match_template rewrite_template;
   [%expect_exact {|
-<block>
-yclass
-  before body
+class y<block>
+before body
 </Block>
 |}]
 
+(*
 (* WRONG BEHAVIOR *)
 let%expect_test "ruby_blocks_simpl" =
   let source = {|

@@ -8,6 +8,8 @@ open Location
 open Types
 
 let configuration_ref = ref (Configuration.create ())
+(* we cannot weaken delimiter matching for alphanum, because the 'end' is the *same* delimiter
+   for different starting blocks. weakening only works if the delimiter is different *)
 let weaken_delimiter_hole_matching = false
 
 let debug = false
@@ -20,11 +22,18 @@ let extract_matched_text source { offset = match_start; _ } { offset = match_end
 
 let is_not p s =
   if is_ok (p s) then
-    Empty_failed (unknown_error s)
+    begin
+      if debugx then Format.printf "fails@.";
+      Empty_failed (unknown_error s)
+    end
   else
     match read_char s with
-    | Some c -> Consumed_ok (c, advance_state s 1, No_error)
-    | None -> Empty_failed (unknown_error s)
+    | Some c ->
+      if debugx then Format.printf "Char: %c@." c;
+      Consumed_ok (c, advance_state s 1, No_error)
+    | None ->
+      if debugx then Format.printf "empty";
+      Empty_failed (unknown_error s)
 
 type 'a literal_parser_callback = contents:string -> left_delimiter:string -> right_delimiter:string -> 'a
 type 'a nested_delimiter_callback = left_delimiter:string -> right_delimiter:string -> 'a
@@ -235,9 +244,14 @@ module Make (Syntax : Syntax.S) = struct
         let until = until_of_from from in
         let p =
           if is_alphanum from then
+            let required_delimiter_terminal = whitespace in
             (* let between left right =
                left >> p << right *)
-            (string from >>= fun d -> whitespace >>= fun s -> return (d^s))
+            (string from >>= fun d ->
+             if debugx then Format.printf "Past string from for: <%s>" d;
+             required_delimiter_terminal >>= fun s ->
+             if debugx then Format.printf "Past required delimiter terminal: <%s>" s;
+             return (d^s))
             >>= fun left_with_spaces ->
             p >>= fun in_between ->
             string until >>= fun right ->
@@ -279,7 +293,7 @@ module Make (Syntax : Syntax.S) = struct
             (* if it's alphanum, only consider it reserved if there is, say, whitespace after and so
                handle alternatively. otherwise, return empty to indicate 'this sequence of characters
                is not reserved' *)
-            [ string from
+            [ (string from >>= fun r -> whitespace >>= fun w -> return (r^w))
             ; string until
             ]
             (*[]*)
@@ -296,7 +310,11 @@ module Make (Syntax : Syntax.S) = struct
        <|> (many1 space >>= fun x -> return @@ String.of_char_list x)
        <|> raw_string_literal_parser (fun ~contents ~left_delimiter:_ ~right_delimiter:_ -> contents)
        <|> escapable_string_literal_parser (fun ~contents ~left_delimiter:_ ~right_delimiter:_ -> contents)
-       <|> (delims_over_holes >>= fun x -> return x)
+       (* without attempt, delims_over_holes will partially succeed on things like "for" in "before".
+          this partial success means that other options in choice are not exercised. by putting attempt,
+          failures where "for" is not followed by whitespace fails, triggering the 'is_not' case
+          below, and behaving as expected. *)
+       <|> (attempt @@ delims_over_holes >>= fun x -> return x)
        <|>
        (* only consume if not reserved. because if it is reserved, we want to trigger the 'many'
           to continue below, in (many nested_grammar) *)
