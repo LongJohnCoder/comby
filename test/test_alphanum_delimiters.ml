@@ -254,9 +254,7 @@ let%expect_test "ocaml_blocks" =
 
   run (module Matchers.OCaml) source match_template rewrite_template;
   [%expect_exact {|
-    struct
-       module Nested_M = struct <bye> end
-    end
+    struct <bye> end
 |}]
 
 
@@ -273,8 +271,9 @@ end
 
   run (module Matchers.Ruby) source match_template rewrite_template;
   [%expect_exact {|
-class y<block>
-before body
+<block>
+yclass
+  before body
 </Block>
 |}]
 

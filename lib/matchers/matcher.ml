@@ -13,7 +13,7 @@ let configuration_ref = ref (Configuration.create ())
 let weaken_delimiter_hole_matching = false
 
 let debug = false
-let debugx = true
+let debugx = false
 
 let f _ = return Unit
 
