@@ -465,10 +465,12 @@ module Make (Syntax : Syntax.S) = struct
      (turn_holes_into_matchers_for_this_level ~left_delimiter ~right_delimiter
         (
           [ string left_delimiter
-            >>= fun _ -> f [left_delimiter]]
+            >>= fun _ ->
+            f [left_delimiter]]
           @ p_list
           @ [ string right_delimiter
-              >>= fun _ -> f [right_delimiter]]
+              >>= fun _ ->
+              f [right_delimiter]]
         )
       |> sequence_chain)
      |> return
