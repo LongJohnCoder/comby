@@ -283,8 +283,6 @@ let%expect_test "erlang_blocks" =
   run (module Matchers.Erlang) source match_template rewrite_template;
   [%expect_exact {|Big =  <fun>-> if X > 10 -> true; true -> false end<end>.|}]
 
-(* WRONG BEHAVIOR: doesn't realize that class here triggers a block where end must be prefixed with
-   whitespace. so it just keeps going until it sees the 'end'. *)
 let%expect_test "ruby_blocks_alphanum_delim_suffix" =
   let source = {|
 class
@@ -302,7 +300,28 @@ ndly
 </Block>
 |}]
 
-(* also broken: no matches. not sure why. *)
+let%expect_test "ruby_blocks_alphanum_delim_suffix" =
+  let source = {|
+class
+  class
+    endly
+  end
+end
+|}
+  in
+  let match_template = {|class :[1] end|} in
+  let rewrite_template = "<block>\n:[1]\n</Block>" in
+
+  run (module Matchers.Ruby) source match_template rewrite_template;
+  [%expect_exact {|
+<block>
+class
+</Block>ly
+  end
+end
+|}]
+
+(* run this when above test case passes *)
 (*
 let%expect_test "ruby_blocks_alphanum_delim_suffix" =
   let source = {|
@@ -317,7 +336,7 @@ end
   run (module Matchers.Ruby) source match_template rewrite_template;
   [%expect_exact {|
 <block>
-before body
+class
 </Block>ly
 end
 |}]

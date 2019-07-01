@@ -137,11 +137,34 @@ module Make (Syntax : Syntax.S) = struct
     List.fold plist ~init:(return Unit) ~f:(>>)
 
   let nested_delimiters_parser (f : 'a nested_delimiter_callback) =
+    let capture_delimiter_result p from until =
+      let _is_alphanum _delim = Pcre.(pmatch ~rex:(regexp "^[[:alnum:]]*$") _delim) in
+      let _whitespace = many1 space |>> String.of_char_list in
+      (*if not (_is_alphanum from) then*)
+      between (string from) (string until) p
+      (*else
+        (* do the whitespace trick *)
+        _whitespace >>= fun _prefix_opening ->
+        string from >>= fun _open_delimiter ->
+        look_ahead @@ _whitespace >>= fun _unconsumed_opening_suffix ->
+        p >>= fun _in_between ->
+        string until >>= fun _close_delimiter ->
+        look_ahead @@ _whitespace >>= fun _ ->
+        (*return  _in_between*)
+        (*return  (string _prefix_opening >> _in_between)*)
+        return
+          (string _prefix_opening
+           >> string _open_delimiter
+           >> string _unconsumed_opening_suffix
+           >> _in_between
+              << string _close_delimiter)
+          (*return (sequence_chain [_prefix_opening; _open_delimiter; _in_between; _close_delimiter])*)
+      *)
+    in
     Syntax.user_defined_delimiters
     |> List.map ~f:(fun (left_delimiter, right_delimiter) ->
-        Parsers.Delimiters.between
-          (f ~left_delimiter ~right_delimiter)
-          left_delimiter right_delimiter)
+        let p = (f ~left_delimiter ~right_delimiter) in
+        capture_delimiter_result p left_delimiter right_delimiter)
     |> choice
 
   (** All code can have comments interpolated *)
@@ -169,9 +192,20 @@ module Make (Syntax : Syntax.S) = struct
     return (id, including, until_char)
 
   let reserved_delimiters =
+    let is_alphanum _delim = Pcre.(pmatch ~rex:(regexp "^[[:alnum:]]*$") _delim) in
+    let whitespace = many1 space |>> String.of_char_list in
     let reserved_delimiters =
-      List.concat_map Syntax.user_defined_delimiters ~f:(fun (from, until) -> [from; until])
-      |> List.map ~f:string
+      List.concat_map Syntax.user_defined_delimiters ~f:(fun (from, until) ->
+          if is_alphanum from then
+            [(whitespace
+              >>= fun prefix_whitespace -> string from
+              >>= fun in_between -> whitespace
+              >>= fun suffix_whitespace ->
+              return (prefix_whitespace^in_between^suffix_whitespace))
+            ; string until
+            ]
+          else
+            [string from; string until])
     in
     let reserved_escapable_strings =
       List.concat_map Syntax.escapable_string_literals ~f:(fun x -> [x])
@@ -243,7 +277,7 @@ module Make (Syntax : Syntax.S) = struct
         let p =
           if is_alphanum from then
             let required_delimiter_terminal = whitespace in
-            (* Use attempt so that, e.g., 'struct' is tried after 'begin' delimiters. *)
+            (* Use attempt so that, e.g., 'struct' is tried after 'begin' delimiters under choice. *)
             attempt @@
             (required_delimiter_terminal >>= fun prefix_opening ->
              if debugx then Format.printf "Past required delim terminal <whitespace>. next: %s@." from;
@@ -255,12 +289,14 @@ module Make (Syntax : Syntax.S) = struct
              look_ahead @@ required_delimiter_terminal >>= fun unconsumed_opening_suffix ->
              if debugx then Format.printf "Past required delimiter terminal: <%s>" unconsumed_opening_suffix;
              p >>= fun in_between ->
+             (* think whitespace needs to be tracked here, but p will swallow it, so can't :(. look behind? *)
              string until >>= fun close_delimiter ->
              (* look_ahead untested *)
              look_ahead @@ required_delimiter_terminal >>= fun _unconsumed_closing_suffix ->
-             return ((prefix_opening^open_delimiter)
-                     ^(String.concat in_between)
-                     ^close_delimiter))
+             return
+               ((prefix_opening^open_delimiter)
+                ^(String.concat in_between)
+                ^close_delimiter))
           else
             between (string from) (string until) p
             >>= fun result -> return (String.concat @@ [from] @ result @ [until])
@@ -305,6 +341,8 @@ module Make (Syntax : Syntax.S) = struct
           else
             [string from; string until]
         )
+      (* RVT: untested, but pretty sure this should be attempt *)
+      |> List.map ~f:attempt
       |> choice
     in
     (* a parser that understands the hole matching cut off points happen at
@@ -413,21 +451,25 @@ module Make (Syntax : Syntax.S) = struct
     (* string literals are handled specially because match semantics change inside string delimiters *)
     <|> (raw_string_literal_parser (generate_hole_for_literal Raw_string_literal))
     <|> (escapable_string_literal_parser (generate_hole_for_literal Escapable_string_literal))
-    (* whitespace is handled specially because we may change whether they are significant for matching *)
-    <|> (spaces1 |>> generate_spaces_parser)
     (* nested delimiters are handled specially for nestedness *)
-    <|> (nested_delimiters_parser generate_outer_delimiter_parsers)
+    (* strictly speaking, attempt should only be needed for alphanums *)
+    <|> (attempt @@ nested_delimiters_parser generate_outer_delimiter_parsers)
+    (* whitespace is handled specially because we may change whether they are significant for matching. Handle
+       after delims because it is significant for alpanum delimiters. *)
+    <|> (spaces1 |>> generate_spaces_parser)
     (* everything else *)
     <|> ((many1 (is_not reserved) |>> String.of_char_list) |>> generate_string_token_parser)
 
   and generate_outer_delimiter_parsers ~left_delimiter ~right_delimiter s =
     (generate_parsers s >>= fun p_list ->
      (turn_holes_into_matchers_for_this_level ~left_delimiter ~right_delimiter
-        ([ string left_delimiter
-           >>= fun _ -> f [left_delimiter]]
-         @ p_list
-         @ [ string right_delimiter
-             >>= fun _ -> f [right_delimiter]])
+        (
+          [ string left_delimiter
+            >>= fun _ -> f [left_delimiter]]
+          @ p_list
+          @ [ string right_delimiter
+              >>= fun _ -> f [right_delimiter]]
+        )
       |> sequence_chain)
      |> return
     ) s
