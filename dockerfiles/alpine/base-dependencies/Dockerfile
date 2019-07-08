@@ -3,7 +3,7 @@ FROM ocaml/opam2:alpine-3.9-ocaml-4.07
 WORKDIR /home/opam
 
 RUN sudo apk --no-cache add \
-    pcre-dev \
+    pcre \
     m4 \
     linux-headers \
     perl \
