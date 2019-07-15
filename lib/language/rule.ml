@@ -12,6 +12,8 @@ open Parser
 
 type result = bool * environment option
 
+let debug = false
+
 let sat = fst
 
 let result_env = snd
@@ -43,7 +45,7 @@ let rec apply ?(matcher = (module Matchers.Generic : Matchers.Matcher)) predicat
     | Some var_value -> String.equal var_value value, Some env
   in
   (* accepts only one expression *)
-  let rec rule_match ?(rewrite_context : rewrite_context option) env =
+  let rec rule_match ?(rewrite_context : rewrite_context option) ?(matches : Match.t list option) env =
     function
     | True -> true, Some env
     | False -> false, Some env
@@ -102,12 +104,58 @@ let rec apply ?(matcher = (module Matchers.Generic : Matchers.Matcher)) predicat
         | None -> false, None
         | Some { variable; _ } ->
           (* FIXME(RVT) assumes only contextual rewrite for now. *)
-          let env =
+          let default =
             Rewrite_template.substitute rewrite_template env
             |> fst
             |> fun replacement' ->
             Environment.update env variable replacement'
             |> Option.some
+          in
+          let result =
+            matches >>= fun matches ->
+            Environment.lookup env variable >>= fun source ->
+            (* when rewriting all, and source contains a hole
+               like :[2] that is not part of matches, but in the enclosing env,
+               we need to add that as something that can be resolved. to avoid conflicts,
+               matches should be bound to fresh variables, and not captured by enclosing env.*)
+            (* FIXME(RVT): #69. This is a hack: ideally we want to have
+               Rewrite.all accept an enriched env, but that breaks a map2_exn
+               invariant. The workaround is to first substitute for cases where
+               the hole is outside the matches env *)
+            (* this substitution is also uncoditional, which is not what we want *)
+            Rewrite.all ~source ~rewrite_template matches
+          in
+          let env =
+            match result with
+            | Some { rewritten_source = _rewritten_source ; _ } ->
+              if debug then Format.printf "Rewritten: %s@." _rewritten_source;
+              if debug then Format.printf "Assign to var: %s@." variable;
+              if debug && Option.is_some default then
+                Format.printf "Default env: %s@."
+                @@ Yojson.Safe.pretty_to_string
+                @@ Environment.to_yojson
+                @@ Option.value_exn default;
+              (*default*)
+
+              let x =
+                Rewrite_template.substitute _rewritten_source env
+                |> fst
+                |> fun replacement' ->
+                Environment.update env variable replacement'
+                |> Option.some
+              in
+
+              let _new_env =
+                Environment.update env variable _rewritten_source
+                |> Option.some
+              in
+              if debug && Option.is_some default then
+                Format.printf "New env: %s@."
+                @@ Yojson.Safe.pretty_to_string
+                @@ Environment.to_yojson
+                @@ Option.value_exn x;
+              x
+            | None -> default
           in
           true, env
       end
@@ -130,14 +178,17 @@ let rec apply ?(matcher = (module Matchers.Generic : Matchers.Matcher)) predicat
                         | Some out -> Environment.merge out env
                         | None -> env
                       in
-                      match matches with
-                      | { environment; _ } :: _ ->
-                        let env = Environment.merge env environment in
-                        rule_match ~rewrite_context:{ variable } env predicate
-                      | _ ->
-                        sat, out
+                      (* TODO: explicitly test this *)
+                      let env =
+                        List.fold matches ~init:env ~f:(fun acc { environment; _ } ->
+                            Environment.merge acc environment)
+                      in
+                      if debug then Format.printf "Iteration@.";
+                      rule_match ~rewrite_context:{ variable } ~matches env predicate
                     else
-                      (sat, out)
+                      begin
+                        (sat, out)
+                      end
                   in
                   List.fold case_expression ~init:(true, None) ~f:fold_cases
                   |> Option.some
@@ -145,6 +196,15 @@ let rec apply ?(matcher = (module Matchers.Generic : Matchers.Matcher)) predicat
             | Variable _ ->
               failwith "| :[hole] is invalid. Maybe you meant to put quotes")
       in
+      begin match result with
+        | Some (sat, Some env) ->
+          if debug then Format.printf "sat: %b result env: %s@."
+              sat
+              (Yojson.Safe.pretty_to_string
+               @@ Environment.to_yojson
+                 env);
+        | _ -> if debug then Format.printf "none@."
+      end;
       Option.value_map result ~f:ident ~default:(false, Some env)
     | Rewrite _ -> failwith "TODO"
   in
@@ -155,9 +215,23 @@ let rec apply ?(matcher = (module Matchers.Generic : Matchers.Matcher)) predicat
             ~f:(fun out -> Environment.merge out env)
             ~default:env
         in
-        rule_match env predicate
+        let result = rule_match env predicate in
+        begin match result with
+          | sat, Some env ->
+            if debug then Format.printf "Xsat: %b Xresult env: %s@."
+                sat
+                (Yojson.Safe.pretty_to_string
+                 @@ Environment.to_yojson
+                   env);
+          | _ -> if debug then Format.printf "Xnone@."
+        end;
+        result
       else
-        (sat, out))
+        begin
+          if debug then Format.printf "XXXX@.";
+          (sat, out)
+        end
+    )
 
 
 let make_equality_expression operator left right =

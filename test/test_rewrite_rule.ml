@@ -87,7 +87,7 @@ let%expect_test "conditional_rewrite_rule" =
   in
 
   run_rule source match_template rewrite_template rule;
-  [%expect_exact {|doot|}]
+  [%expect_exact {|{ doot }|}]
 
 let%expect_test "rewrite_rule_using_match_result" =
   let source = {|{ { a : { b : { c : d } } } }|} in
@@ -105,7 +105,7 @@ let%expect_test "rewrite_rule_using_match_result" =
   in
 
   run_rule source match_template rewrite_template rule;
-  [%expect_exact {|{ b : { c : d } }|}];
+  [%expect_exact {|{ { b : { c : d } } }|}];
 
   let source = {|{ { a : { b : { c : d } } } }|} in
   let match_template = {|:[1]|} in
@@ -144,7 +144,7 @@ let%expect_test "nested_rewrite_rule" =
   in
 
   run_rule source match_template rewrite_template rule;
-  [%expect_exact {|{ b : { b : { c : d } } }|}]
+  [%expect_exact {|{ { b : { b : { c : d } } } }|}]
 
 let%expect_test "sequenced_rewrite_rule" =
   let source = {|{ { a : { b : { c : d } } } }|} in
@@ -167,3 +167,22 @@ let%expect_test "sequenced_rewrite_rule" =
 
   run_rule source match_template rewrite_template rule;
   [%expect_exact {|{ { qqq : { c : d } } }|}]
+
+
+let%expect_test "repeat_rewrite_rule" =
+  let source = {|{1,2,3,}|} in
+  let match_template = {|{:[1]}|} in
+  let rewrite_template = {|{:[1]}|} in
+
+  let rule =
+    {|
+      where rewrite :[1] {
+      | ":[x]," -> ":[x] "
+      }
+    |}
+    |> Rule.create
+    |> Or_error.ok_exn
+  in
+
+  run_rule source match_template rewrite_template rule;
+  [%expect_exact {|{1 2 3 }|}]

@@ -1,5 +1,5 @@
 type t
-[@@deriving yojson]
+[@@deriving yojson, sexp]
 
 val create : unit -> t
 

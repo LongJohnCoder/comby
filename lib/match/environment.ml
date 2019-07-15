@@ -14,8 +14,15 @@ type data = Data.t
 
 type t = data Core.String.Map.t
 
+
 let create () : t =
   String.Map.empty
+
+let t_of_sexp _ =
+  create ()
+
+let sexp_of_t _ =
+  Sexp.Atom ""
 
 let vars (env : t) : string list =
   Map.keys env

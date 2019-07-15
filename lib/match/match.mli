@@ -27,7 +27,7 @@ type range = Range.t
 
 module Environment : sig
   type t
-  [@@deriving yojson, eq]
+  [@@deriving yojson, eq, sexp]
 
   val create : unit -> t
 
@@ -62,7 +62,7 @@ type t =
   ; environment : environment
   ; matched : string
   }
-[@@deriving yojson]
+[@@deriving yojson, sexp]
 
 val create : unit -> t
 

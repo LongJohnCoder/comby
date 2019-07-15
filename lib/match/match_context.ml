@@ -5,7 +5,7 @@ type t =
   ; environment : Environment.t
   ; matched : string
   }
-[@@deriving yojson]
+[@@deriving yojson, sexp]
 
 let create () =
   { range = Range.default
