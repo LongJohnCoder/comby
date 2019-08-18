@@ -1,3 +1,5 @@
+(copy_files alpha/*.ml{,i})
+
 (library
  (name test_integration)
  (modules
