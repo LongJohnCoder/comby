@@ -1,3 +1,5 @@
+(copy_files# alpha/*.ml{,i})
+
 (library
   (name matchers)
   (public_name comby.matchers)
