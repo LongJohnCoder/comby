@@ -32,9 +32,8 @@ let record_match_context pos_before pos_after =
     let match_end =
       { default with offset = pos_after }
     in
-    let range = Match.Range.{ match_start; match_end } in
     Match.
-      { range
+      { range = { match_start; match_end }
       ; environment = !current_environment_ref
       ; matched = extract_matched_text !source_ref match_start match_end
       }
@@ -44,6 +43,7 @@ let record_match_context pos_before pos_after =
 
 let r _v =
   let open Match in
+  let open Range in
   match _v with
   | String s ->
     if debug then Format.printf "Result: %s@." s;
@@ -52,13 +52,11 @@ let r _v =
     (* using just pos after for now, because thats what we do in matcher. lol *)
     if debug then Format.printf "Match: %S@." content;
     if debug then Format.printf "Match @@ %d@." pos_after;
-    if debug then Format.printf "Match @@ %d@." pos_after;
-    (* FIXME pre_location *)
-    let pre_location = Location.default in
-    let post_location =
+    let before = Location.default in (* FIXME *)
+    let after =
       { Location.default with offset = pos_after }
     in
-    let range = Match.Range.{ match_start = pre_location; match_end = post_location } in
+    let range = { match_start = before; match_end = after } in
     let environment = Environment.add ~range !current_environment_ref identifier content in
     current_environment_ref := environment;
     return _v
@@ -126,8 +124,10 @@ module Make (Syntax : Syntax.S) = struct
              else
                acc))
     >>= function
-    | `OK
-    | `End_of_input -> any_char
+    | `OK ->
+      any_char
+    | `End_of_input ->
+      any_char
     | `Reserved_sequence -> fail "reserved sequence hit"
 
   let sequence_chain_deprecated p_list =
@@ -174,32 +174,114 @@ module Make (Syntax : Syntax.S) = struct
           ; other
           ])
 
+  let cons x xs = x :: xs
+
+  let many_till p t =
+    fix (fun m ->
+        (t *> return []) <|> (lift2 cons p m))
+
+  let many1_till p t =
+    lift2 cons p (many_till p t)
+
+  (* when we have a nest, just insert a return Unit as the end (init) *)
   let sequence_chain p_list =
-    List.fold_right p_list ~init:(return Unit) ~f:(fun p acc ->
-        match parse_string p "_signal_hole" with
-        | Error _ -> p *> acc
-        | Ok f ->
-          match f with
-          | Hole (Alphanum (identifier, _)) ->
-            pos >>= fun pos_before ->
-            many1 (generate_single_hole_parser ())
-            >>= fun value -> r (Match (pos_before, identifier, (String.concat value)))
-          | Hole (Everything (identifier, _dimension)) ->
-            pos >>= fun pos_before ->
-            if debug then Format.printf "match start @@ %d@." pos_before;
-            many_till
-              (generate_greedy_hole_parser ()
-               >>= fun s ->
-               pos >>= fun pos ->
-               if debug then Format.printf "true end: %d@." pos;
-               return (s,pos)
-               (* capture greedy pos in here before acc *)
-              )
-              acc
-            >>= fun results ->
-            r (Match (List.map results ~f:snd |> List.rev |> List.hd_exn, identifier,
-                      (String.concat (List.map results ~f:fst))))
-          | _ -> assert false)
+    (*Format.printf "Sequence chain %d@." @@ List.length p_list;*)
+    (*Format.printf "ponk, list running sz: %d@." @@ List.length p_list;*)
+    (* this case means that, if there are only holes, that empty string can sat
+       (since we added that explicitly). but (many empty) is not good, so it's
+       the edge case. adding () around template and source hack essentially
+       removes the (many empty) case *)
+    let only_holes =
+      List.map p_list ~f:(fun p ->
+          match parse_string p "_signal_hole" with
+          | Error _ -> false
+          | Ok _ -> true)
+      |> List.for_all ~f:ident
+    in
+    if only_holes then
+      begin
+        if debug then Format.printf "ONLY HOLES: P SIZE: %d@." @@ List.length p_list;
+        (many1_till
+           (
+             (*Format.printf "before running gen@.";*)
+             generate_greedy_hole_parser ()
+             >>= fun s ->
+             (*Format.printf "after running gen: %S@." s;*)
+             pos >>= fun pos ->
+             if debug then Format.printf "captured pos: %d@." pos;
+             return (s,pos)
+             (* capture greedy pos in here before acc *)
+           )
+           end_of_input)
+        >>= fun results ->
+        (*Format.printf "have results %d@." @@ List.length results;*)
+        r (Match (List.map results ~f:snd |> List.rev |> List.hd_exn, "1",
+                  (String.concat (List.map results ~f:fst))))
+      end
+    else
+      begin
+        if debug then Format.printf "not just holes@.";
+        (* If terminator size is 0, then do something else (terminate at eof?) *)
+        List.fold_right p_list ~init:(return Unit) ~f:(fun p acc ->
+            if debug then Format.printf "iterate@.";
+            match parse_string p "_signal_hole" with
+            | Error _ ->
+              if debug then Format.printf "Composing p with terminating parser@.";
+              p *> acc
+            | Ok f ->
+              (*Format.printf "Ok.@.";*)
+              match f with
+              | Hole (Alphanum (identifier, _)) ->
+                pos >>= fun pos_before ->
+                many1 (generate_single_hole_parser ())
+                >>= fun value -> r (Match (pos_before, identifier, (String.concat value)))
+              | Hole (Everything (identifier, _dimension)) ->
+                if debug then Format.printf "do hole@.";
+                (*Format.printf "match@.";*)
+                (*pos >>= fun _pos_before ->*) (* why does this cause below to print twice ? *)
+                (*Format.printf "hole detected@.";*)
+                (* absolutely must use many_till because it stops the greedy
+                   from eating the suffix.
+                   greedy followed by suffix is not the same as greedy until suffix:
+                   greedy will eat the suffix and then expect the suffix too, and fail *)
+
+                (choice [
+                    (many1_till
+                       (
+                         (*Format.printf "before running gen@.";*)
+                         generate_greedy_hole_parser ()
+                         >>= fun s ->
+                         (*Format.printf "after running gen: %S@." s;*)
+                         pos >>= fun pos ->
+                         if debug then Format.printf "captured pos: %d@." pos;
+                         return (s,pos)
+                         (* capture greedy pos in here before acc *)
+                       )
+                       acc)
+                    ;
+                    (* unifies hole with empty string if acc succeeds and above fails.
+                       Cases like: (:[1]), (:[1]:[2]) with ().
+                       works as expecred, EXCEPT when there is just an empty hole.
+                       Because acc is the empty string... *)
+                    (acc >>= fun _b ->
+                     if debug then Format.printf "Acc succeeds.@.";
+                     pos >>= fun pos ->
+                     if debug then Format.printf "Pos %d@." pos;
+                     at_end_of_input >>= fun res ->
+                     if debug then Format.printf "End? %b@." res;
+                     (*if res then
+                       fail "x"
+                       else*)
+                     return ["", pos]
+                    )
+                  ]
+                )
+                >>= fun results ->
+                (*Format.printf "have results %d@." @@ List.length results;*)
+                r (Match (List.map results ~f:snd |> List.rev |> List.hd_exn, identifier,
+                          (String.concat (List.map results ~f:fst))))
+              | _ -> assert false)
+      end
 
   (** must have at least one, otherwise spins on
       the empty string *)
@@ -218,8 +300,7 @@ module Make (Syntax : Syntax.S) = struct
 
   let generate_string_token_parser str =
     (* FIXME needs comments, etc*)
-    if debug then
-      Format.printf "String(%s)@." str;
+    if debug then Format.printf "String(%s)@." str;
     string str
     >>= fun result -> r (String result)
 
@@ -310,17 +391,33 @@ module Make (Syntax : Syntax.S) = struct
       )
     |>> fun p_list ->
     p_list
-    |> sequence_chain |> fun res ->
+    |> sequence_chain |> fun matcher ->
     (* XXX: skip_any needs to be delim/string literals *)
     many ((skip_any
              (many_till any_char
-                (pos >>= fun start_pos ->
-                 res >>= fun _access_last_production_here ->
-                 pos >>= fun end_pos ->
-                 record_match_context start_pos end_pos;
-                 current_environment_ref := Match.Environment.create ();
-                 return Unit))
-           >>= fun () -> r Unit)) >>= fun _x -> r Unit
+                (
+                  (
+                    (
+                      at_end_of_input >>= fun res ->
+                      if debug then Format.printf "End? %b. Then end.@." res;
+                      if res then
+                        fail "x"
+                      else
+                        pos >>= fun start_pos ->
+                        matcher >>= fun _access_last_production_herpe ->
+                        pos >>= fun end_pos ->
+                        if debug then Format.printf "Fuckery@.";
+                        record_match_context start_pos end_pos;
+                        current_environment_ref := Match.Environment.create ();
+                        return Unit)
+                    (*<|>
+                      (end_of_input >>= fun () -> return Unit)*)
+                  )
+                )
+             )
+          ))
+    (*>>= fun _x -> end_of_input *)
+    >>= fun _x -> r Unit >>= fun _x -> r Unit
 
   (* XXX could maybe use "end_of_input" parser as a better way of doing this *)
   let to_template template =
@@ -332,13 +429,11 @@ module Make (Syntax : Syntax.S) = struct
       begin
         match fin with
         | Buffered.Partial _ ->
-          if debug then
-            Format.printf "(1) template FAIL. not fully consumed@.";
+          if debug then Format.printf "(1) template FAIL. not fully consumed@.";
           Or_error.error_string "(1) template not fully consumed@.";
         | Buffered.Done ({ len; _ },p) ->
           if len = 0 then
-            (if debug then
-               Format.printf "Template fully consumed@.";
+            (if debug then Format.printf "Template fully consumed@.";
              Ok p)
           else
             (if debug then Format.printf "(X)template FAIL. not fully consumed";
