@@ -1,4 +1,4 @@
-open Core
+(* open Core
 
 open Matchers
 
@@ -23,3 +23,4 @@ let%expect_test "nested_multiline_ocaml" =
   (* 0 is commented out *)
   print_matches matches_no_nesting;
   [%expect_exact {|[]|}];
+ *)

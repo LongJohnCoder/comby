@@ -1,4 +1,4 @@
-open Core
+(* open Core
 
 module Time = Core_kernel.Time_ns.Span
 
@@ -779,3 +779,4 @@ let%expect_test "zip_exclude_dir_no_extension" =
      // src
     -func main() {}
     +func pain() {} |}];
+ *)

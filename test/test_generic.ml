@@ -1,4 +1,4 @@
-open Core
+(* open Core
 
 open Matchers
 open Rewriter
@@ -418,3 +418,4 @@ let%expect_test "contextual_matching_with_short_hole_syntax" =
   let rewrite_template = {|:[[1]]|} in
   run source match_template rewrite_template;
   [%expect_exact {|dst1; dst2;|}]
+ *)

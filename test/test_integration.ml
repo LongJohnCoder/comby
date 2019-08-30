@@ -1,4 +1,4 @@
-open Core
+(* open Core
 
 open Matchers
 open Rewriter
@@ -285,3 +285,4 @@ let%expect_test "match_:[[1]]" =
   [%expect_exact {|
     col_names =next(reader)}
     |}]
+ *)

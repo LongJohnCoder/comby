@@ -1,4 +1,4 @@
-open Core
+(* open Core
 
 open Matchers
 open Rewriter
@@ -219,3 +219,4 @@ let%expect_test "give_back_the_comment_characters_for_newline_comments_too" =
          // a comment
        }
     |}]
+ *)

@@ -1,4 +1,4 @@
-open Core
+(* open Core
 
 open Matchers
 open Rewriter
@@ -103,3 +103,4 @@ let%expect_test "comments_11" =
 
   run source match_template rewrite_template;
   [%expect_exact {|do (b) /* don't match this (a) end */|}]
+ *)

@@ -1,4 +1,4 @@
-open Core
+(* open Core
 
 open Matchers
 open Rewriter
@@ -75,3 +75,4 @@ let%expect_test "custom_long_delimiters_doesn't_work_in_go" =
         esac
       esac
     |}]
+ *)

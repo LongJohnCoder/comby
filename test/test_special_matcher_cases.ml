@@ -1,4 +1,4 @@
-open Core
+(* open Core
 
 open Matchers
 open Rewriter
@@ -440,3 +440,4 @@ let%expect_test "ruby_blocks_5" =
 
   run (module Matchers.Ruby) source match_template rewrite_template;
   [%expect_exact {|<1>foo</1>|}]
+*)

@@ -1,4 +1,4 @@
-open Core
+(* open Core
 
 open Matchers
 open Rewriter
@@ -79,3 +79,4 @@ let%expect_test "alphanum_partial_match" =
   let rewrite_template = {|{:[x]}|} in
   run source match_template rewrite_template;
   [%expect_exact {|   foo.     {a} derp|}]
+ *)

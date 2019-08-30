@@ -1,4 +1,4 @@
-open Core
+(* open Core
 
 open Lwt.Infix
 
@@ -206,3 +206,4 @@ let%expect_test "post_request" =
     Expecting ":[", "false", "match", "rewrite", "true" or string literal |}]
 
 let () = kill ()
+ *)

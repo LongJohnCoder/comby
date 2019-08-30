@@ -1,4 +1,4 @@
-open Core
+(* open Core
 
 open Language
 open Matchers
@@ -695,3 +695,4 @@ let%expect_test "match_on_template" =
   |> print_matches;
   [%expect {|
     [] |}];
+ *)

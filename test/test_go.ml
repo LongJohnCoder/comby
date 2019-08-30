@@ -1,4 +1,4 @@
-open Core
+(* open Core
 
 open Language
 open Matchers
@@ -99,3 +99,4 @@ let%expect_test "gosimple_s1003" =
 
   run source match_template rewrite_template;
   [%expect_exact {|Index|}]
+ *)

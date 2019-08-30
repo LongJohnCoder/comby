@@ -1,4 +1,4 @@
-open Core
+(* open Core
 
 open Language
 open Matchers
@@ -85,3 +85,4 @@ let %expect_test "statistics" =
       "number_of_matches": 3,
       "total_time": 1.5
     } |}]
+ *)

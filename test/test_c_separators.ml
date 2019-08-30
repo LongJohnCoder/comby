@@ -1,4 +1,4 @@
-open Core
+(* open Core
 
 open Matchers
 open Rewriter
@@ -34,3 +34,4 @@ let%expect_test "whitespace_should_not_matter_between_separators" =
   let rewrite_template = {|:[1]|} in
   run source match_template rewrite_template;
   [%expect_exact {|p|}]
+ *)

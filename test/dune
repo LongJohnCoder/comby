@@ -1,8 +1,7 @@
-(copy_files alpha/*.ml{,i})
-
 (library
- (name test_integration)
+ (name test_integration_omega)
  (modules
+  test_omega
   test_match_rule
   test_hole_extensions
   test_python_string_literals

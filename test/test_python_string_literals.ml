@@ -1,4 +1,4 @@
-open Core
+(* open Core
 
 open Matchers
 
@@ -52,3 +52,4 @@ let%expect_test "raw_string_captures_escape_sequences" =
   let matches = Python.all ~configuration ~template ~source in
   print_matches matches;
   [%expect_exact {|[ "\"\"\"\\\"\"\"" ]|}]
+ *)

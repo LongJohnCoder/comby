@@ -1,4 +1,4 @@
-open Core
+(* open Core
 
 open Match
 open Matchers
@@ -203,3 +203,4 @@ let%expect_test "multiple_contextual_substitutions" =
     }
   ]
 }|}]
+ *)

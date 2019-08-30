@@ -1,4 +1,4 @@
-open Core
+(* open Core
 open Matchers
 open Rewriter
 
@@ -60,3 +60,4 @@ let%expect_test "user_defined_language" =
       //   ignore this
       // esac
     |}]
+ *)
