@@ -50,9 +50,9 @@ let r _v =
     return _v
   | Match (pos_after, identifier, content) ->
     (* using just pos after for now, because thats what we do in matcher. lol *)
-    Format.printf "Match: %S@." content;
-    Format.printf "Match @@ %d@." pos_after;
-    Format.printf "Match @@ %d@." pos_after;
+    if debug then Format.printf "Match: %S@." content;
+    if debug then Format.printf "Match @@ %d@." pos_after;
+    if debug then Format.printf "Match @@ %d@." pos_after;
     (* FIXME pre_location *)
     let pre_location = Location.default in
     let post_location =
@@ -191,7 +191,7 @@ module Make (Syntax : Syntax.S) = struct
               (generate_greedy_hole_parser ()
                >>= fun s ->
                pos >>= fun pos ->
-               Format.printf "true end: %d@." pos;
+               if debug then Format.printf "true end: %d@." pos;
                return (s,pos)
                (* capture greedy pos in here before acc *)
               )
