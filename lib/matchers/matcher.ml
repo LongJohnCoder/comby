@@ -185,6 +185,24 @@ module Make (Syntax : Syntax.S) (Info : Info.S) = struct
     (* Backtrack on failure, specifically for alphanum. *)
     |> attempt
 
+  (* basically generates a word that is NOT ok with
+     having alphanum chars before or after it *)
+  let generate_word chars : ('c, _) parser =
+    (fun s ->
+       let prev = prev_char s in
+       (
+         begin match prev with
+           | Some prev when is_alphanum (Char.to_string prev) ->
+             (*Format.printf "Prev: %c@." prev;*)
+             fail "unsat"
+           | _ ->
+             string (String.of_char_list chars)
+             >>= fun result ->
+             look_ahead (many1 (is_not alphanum) |>> String.of_char_list) >>= fun _ ->
+             f result
+         end;
+       ) s)
+
   (** All code can have comments interpolated *)
   let generate_string_token_parser str : ('c, _) parser =
     many comment_parser
@@ -606,6 +624,12 @@ module Make (Syntax : Syntax.S) (Info : Info.S) = struct
     (* Whitespace is handled specially because we may change whether they are significant for matching. *)
     <|> (spaces1 |>> generate_spaces_parser)
     (* Everything else. *)
+    (* behavioral change: break up all tokens between punctuation/reserved delims/strings... *)
+    (* i.e., for all words in the template, generate a parser that parses that word but only if it
+       is not preceded or followed by an alphanum. *)
+    (* just create a parser that parses alphanum. when done, generate a parser that
+       is OK with it except when it is preceded by or followed by alphanum *)
+    <|> (many1 (alphanum <|> char '_') |>> generate_word)
     <|>
     ((many1 (is_not (reserved _s)) >>= fun cl ->
       if debug then Format.printf "<cl>%s</cl>" @@ String.of_char_list cl;
